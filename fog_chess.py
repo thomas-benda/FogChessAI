@@ -226,6 +226,3 @@ if __name__ == "__main__":
         elif fog_game.black_wins():
             print("Black wins!")
             break
-
-
-
