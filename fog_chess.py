@@ -1,6 +1,94 @@
 import math
 import chess
+from stockfish import Stockfish
+import collections
 
+str_index_to_pst_index = {}
+
+pst_index = 0, 0
+for i in range(128):
+    if i % 2 == 0:
+        str_index_to_pst_index[i] = math.floor(i / 16), int((i % 16) / 2)
+
+def reverse_pst(pst):
+    copy = pst.copy()
+    copy.reverse()
+    return copy
+
+
+pawnEvalWhite =[[0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+    [5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0],
+    [1.0,  1.0,  2.0,  3.0,  3.0,  2.0,  1.0,  1.0],
+    [0.5,  0.5,  1.0,  2.5,  2.5,  1.0,  0.5,  0.5],
+    [0.0,  0.0,  0.0,  2.0,  2.0,  0.0,  0.0,  0.0],
+    [0.5, -0.5, -1.0,  0.0,  0.0, -1.0, -0.5,  0.5],
+    [0.5,  1.0, 1.0,  -2.0, -2.0,  1.0,  1.0,  0.5],
+    [0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+]
+
+pawnEvalBlack = reverse_pst(pawnEvalWhite)
+
+knightEval =[
+    [-5.0, -4.0, -3.0, -3.0, -3.0, -3.0, -4.0, -5.0],
+    [-4.0, -2.0,  0.0,  0.0,  0.0,  0.0, -2.0, -4.0],
+    [-3.0,  0.0,  1.0,  1.5,  1.5,  1.0,  0.0, -3.0],
+    [-3.0,  0.5,  1.5,  2.0,  2.0,  1.5,  0.5, -3.0],
+    [-3.0,  0.0,  1.5,  2.0,  2.0,  1.5,  0.0, -3.0],
+    [-3.0,  0.5,  1.0,  1.5,  1.5,  1.0,  0.5, -3.0],
+    [-4.0, -2.0,  0.0,  0.5,  0.5,  0.0, -2.0, -4.0],
+    [-5.0, -4.0, -3.0, -3.0, -3.0, -3.0, -4.0, -5.0]
+]
+
+bishopEvalWhite = [
+    [ -2.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -2.0],
+    [ -1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -1.0],
+    [ -1.0,  0.0,  0.5,  1.0,  1.0,  0.5,  0.0, -1.0],
+    [ -1.0,  0.5,  0.5,  1.0,  1.0,  0.5,  0.5, -1.0],
+    [ -1.0,  0.0,  1.0,  1.0,  1.0,  1.0,  0.0, -1.0],
+    [ -1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0, -1.0],
+    [ -1.0,  0.5,  0.0,  0.0,  0.0,  0.0,  0.5, -1.0],
+    [ -2.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -2.0]
+]
+
+bishopEvalBlack = reverse_pst(bishopEvalWhite)
+
+rookEvalWhite = [
+    [  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+    [  0.5,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  0.5],
+    [ -0.5,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -0.5],
+    [ -0.5,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -0.5],
+    [ -0.5,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -0.5],
+    [ -0.5,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -0.5],
+    [ -0.5,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -0.5],
+    [  0.0,   0.0, 0.0,  0.5,  0.5,  0.0,  0.0,  0.0]
+]
+
+rookEvalBlack = reverse_pst(rookEvalWhite)
+
+evalQueen = [
+    [ -2.0, -1.0, -1.0, -0.5, -0.5, -1.0, -1.0, -2.0],
+    [ -1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -1.0],
+    [ -1.0,  0.0,  0.5,  0.5,  0.5,  0.5,  0.0, -1.0],
+    [ -0.5,  0.0,  0.5,  0.5,  0.5,  0.5,  0.0, -0.5],
+    [  0.0,  0.0,  0.5,  0.5,  0.5,  0.5,  0.0, -0.5],
+    [ -1.0,  0.5,  0.5,  0.5,  0.5,  0.5,  0.0, -1.0],
+    [ -1.0,  0.0,  0.5,  0.0,  0.0,  0.0,  0.0, -1.0],
+    [ -2.0, -1.0, -1.0, -0.5, -0.5, -1.0, -1.0, -2.0]
+]
+
+kingEvalWhite = [
+
+    [ -3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
+    [ -3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
+    [ -3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
+    [ -3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
+    [ -2.0, -3.0, -3.0, -4.0, -4.0, -3.0, -3.0, -2.0],
+    [ -1.0, -2.0, -2.0, -2.0, -2.0, -2.0, -2.0, -1.0],
+    [  2.0,  2.0,  0.0,  0.0,  0.0,  0.0,  2.0,  2.0 ],
+    [  2.0,  3.0,  1.0,  0.0,  0.0,  1.0,  3.0,  2.0 ]
+]
+
+kingEvalBlack = reverse_pst(kingEvalWhite)
 # this all creates a dictionary mapping the index of a character in the string representation of the board to the
 # name of the square e.g index 0 is associated with a8, index 2 b8, ...
 index_to_chess_pos = {}
@@ -188,27 +276,114 @@ class FogAgent:
                             return False
         return True
 
+    def stockfish_heuristic(self, board):
+        move_stack = board.move_stack
+        list_of_moves = []
+        for move in move_stack:
+            list_of_moves.append(str(move))
+
+        stockfish = Stockfish()
+        stockfish.set_position(list_of_moves)
+
+        eval = stockfish.get_evaluation()
+
+        if self.color == "white":
+            if eval.get("type") == "cp":
+                return eval.get("value")
+            else:
+                return 50
+
+        else:
+            if eval.get("type") == "cp":
+                return -1 * eval.get("value")
+            else:
+                return 50
+
+    def piece_square_heuristic(self):
+        board_score = 0
+        if self.color == "white":
+            for i in range(len(self.board)):
+                square = self.board[i]
+                if square.isupper():
+                    pst_row = str_index_to_pst_index[i][0]
+                    pst_col = str_index_to_pst_index[i][1]
+                    if square == "P":
+                        board_score += pawnEvalWhite[pst_row][pst_col]
+                    elif square == "N":
+                        board_score += knightEval[pst_row][pst_col]
+                    elif square == "B":
+                        board_score += bishopEvalWhite[pst_row][pst_col]
+                    elif square == "R":
+                        board_score += rookEvalWhite[pst_row][pst_col]
+                    elif square == "Q":
+                        board_score += evalQueen[pst_row][pst_col]
+                    elif square == "K":
+                        board_score += kingEvalWhite[pst_row][pst_col]
+        elif self.color == "black":
+            for i in range(len(self.board)):
+                square = self.board[i]
+                if square.islower():
+                    pst_row = str_index_to_pst_index[i][0]
+                    pst_col = str_index_to_pst_index[i][1]
+                    if square == "p":
+                        board_score += pawnEvalBlack[pst_row][pst_col]
+                    elif square == "n":
+                        board_score += knightEval[pst_row][pst_col]
+                    elif square == "b":
+                        board_score += bishopEvalBlack[pst_row][pst_col]
+                    elif square == "r":
+                        board_score += rookEvalBlack[pst_row][pst_col]
+                    elif square == "q":
+                        board_score += evalQueen[pst_row][pst_col]
+                    elif square == "k":
+                        board_score += kingEvalBlack[pst_row][pst_col]
+
+        return board_score
+
+
+    def best_move(self):
+        move_values = collections.Counter()
+
+        for move in self.game.board.pseudo_legal_moves:
+            for board in self.possible_hists[-1]:
+                # copy = board.copy()
+                # copy.push(move)
+                heur = self.piece_square_heuristic()
+                move_values[move] += heur
+
+        return max(move_values, key=move_values.get)
+
 
 if __name__ == "__main__":
     fog_game = FogChess()
     agent = FogAgent(fog_game, "black")
     game_not_over = True
-    our_last_move = None
+    agent_last_move = None
     while game_not_over:
         if fog_game.board.turn:
-            print(fog_game.white_board)
-            agent.update_after_our_move(our_last_move)
-            agent.update_hist()
-        else:
             print(fog_game.black_board)
+            print("\n")
+            print(fog_game.white_board)
+            agent.update_after_our_move(agent_last_move)
+            agent.update_hist()
+            move_not_made_yet = True
+        else:
+            # print(fog_game.black_board)
             agent.update_after_their_move()
             agent.update_hist()
+
+            best_move = agent.best_move()
+            agent_last_move = best_move
+            fog_game.move(best_move)
+            agent.update_game(fog_game)
+
+            move_not_made_yet = False
 
         if len(agent.possible_hists) > 1:
             possible_last_states = agent.possible_hists[-1]
             print("possible last states: " + str(len(possible_last_states)))
 
-        move_not_made_yet = True
+
         while move_not_made_yet:
             inp = input("Input move: ")
 
@@ -216,7 +391,7 @@ if __name__ == "__main__":
 
             if fog_game.board.is_pseudo_legal(move):
                 if not fog_game.board.turn:
-                    our_last_move = move
+                    user_last_move = move
                 fog_game.move(move)
                 agent.update_game(fog_game)
                 break
