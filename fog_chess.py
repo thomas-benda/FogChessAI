@@ -18,11 +18,14 @@ for i in range(128):
         rank = math.ceil((128 - i) / 16)
         index_to_chess_pos[i] = str(file) + str(rank)
 
-
+# keeps track of the actual game
 class FogChess:
     def __init__(self):
+        # what the board actually is
         self.board = chess.Board()
+        # what white sees
         self.update_white_board()
+        # what black sees
         self.update_black_board()
 
     def update_white_board(self):
