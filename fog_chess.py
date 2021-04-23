@@ -2,6 +2,7 @@ import math
 import chess
 from stockfish import Stockfish
 import collections
+import copy
 
 str_index_to_pst_index = {}
 
@@ -28,7 +29,7 @@ pawnEvalWhite =[[0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
 
 pawnEvalBlack = reverse_pst(pawnEvalWhite)
 
-knightEval =[
+knightEval = [
     [-5.0, -4.0, -3.0, -3.0, -3.0, -3.0, -4.0, -5.0],
     [-4.0, -2.0,  0.0,  0.0,  0.0,  0.0, -2.0, -4.0],
     [-3.0,  0.0,  1.0,  1.5,  1.5,  1.0,  0.0, -3.0],
@@ -108,9 +109,12 @@ for i in range(128):
 
 # keeps track of the actual game
 class FogChess:
-    def __init__(self):
+    def __init__(self, board=None):
         # what the board actually is
-        self.board = chess.Board()
+        if board:
+            self.board = board
+        else:
+            self.board = chess.Board()
         # what white sees
         self.update_white_board()
         # what black sees
@@ -192,9 +196,9 @@ class FogAgent:
     def __init__(self, game, color):
         self.game = game
         self.color = color
-        self.update_game(game)
         self.hist = []
         self.possible_hists = [[chess.Board()]]
+        self.update_game(game)
 
     def update_game(self, game):
         self.game = game
@@ -276,34 +280,35 @@ class FogAgent:
                             return False
         return True
 
-    def stockfish_heuristic(self, board):
-        move_stack = board.move_stack
-        list_of_moves = []
-        for move in move_stack:
-            list_of_moves.append(str(move))
+    # def stockfish_heuristic(self, board):
+    #     move_stack = board.move_stack
+    #     list_of_moves = []
+    #     for move in move_stack:
+    #         list_of_moves.append(str(move))
+    #
+    #     stockfish = Stockfish()
+    #     stockfish.set_position(list_of_moves)
+    #
+    #     eval = stockfish.get_evaluation()
+    #
+    #     if self.color == "white":
+    #         if eval.get("type") == "cp":
+    #             return eval.get("value")
+    #         else:
+    #             return 50
+    #
+    #     else:
+    #         if eval.get("type") == "cp":
+    #             return -1 * eval.get("value")
+    #         else:
+    #             return 50
 
-        stockfish = Stockfish()
-        stockfish.set_position(list_of_moves)
-
-        eval = stockfish.get_evaluation()
-
-        if self.color == "white":
-            if eval.get("type") == "cp":
-                return eval.get("value")
-            else:
-                return 50
-
-        else:
-            if eval.get("type") == "cp":
-                return -1 * eval.get("value")
-            else:
-                return 50
-
-    def piece_square_heuristic(self):
+    def piece_square_heuristic(self, board):
+        board_str = str(board)
         board_score = 0
         if self.color == "white":
-            for i in range(len(self.board)):
-                square = self.board[i]
+            for i in range(len(board_str)):
+                square = board_str[i]
                 if square.isupper():
                     pst_row = str_index_to_pst_index[i][0]
                     pst_col = str_index_to_pst_index[i][1]
@@ -320,8 +325,8 @@ class FogAgent:
                     elif square == "K":
                         board_score += kingEvalWhite[pst_row][pst_col]
         elif self.color == "black":
-            for i in range(len(self.board)):
-                square = self.board[i]
+            for i in range(len(board_str)):
+                square = board_str[i]
                 if square.islower():
                     pst_row = str_index_to_pst_index[i][0]
                     pst_col = str_index_to_pst_index[i][1]
@@ -340,24 +345,71 @@ class FogAgent:
 
         return board_score
 
+    def center_control_hueristic(self, board):
+        center_ctrl_count = 0
+        center_spaces = ['d4', 'd5', 'e4', 'e5']
+        # make move list from our perspective, not the opponents
+        board.push(chess.Move.null())
+        for move in board.pseudo_legal_moves:
+            if str(move)[2:4] in center_spaces:
+                center_ctrl_count += 1
+
+        return center_ctrl_count
+
+    def material_advantage(self, board):
+        board_str = str(board)
+        advantage = 0
+        for i in range(len(board_str)):
+            square = board_str[i]
+            if square == "P":
+                advantage += 1
+            elif square == "N" or square == "B":
+                advantage += 3
+            elif square == "R":
+                advantage += 5
+            elif square == "Q":
+                advantage += 9
+            elif square == "K":
+                advantage += 100
+            elif square == "p":
+                advantage -= 1
+            elif square == "n" or square == "b":
+                advantage -= 3
+            elif square == "r":
+                advantage -= 5
+            elif square == "q":
+                advantage -= 9
+            elif square == "k":
+                advantage -= 100
+
+        # originally calculated for white, flip if black
+        if self.color == "black":
+            advantage *= -1
+
+        return advantage
+
+    def combined_heuristic(self, board):
+        return 20 * self.material_advantage(board) + \
+               3 * self.center_control_hueristic(board) + \
+               1 * self.piece_square_heuristic(board)
 
     def best_move(self):
         move_values = collections.Counter()
 
         for move in self.game.board.pseudo_legal_moves:
             for board in self.possible_hists[-1]:
-                # copy = board.copy()
-                # copy.push(move)
-                heur = self.piece_square_heuristic()
+                copy = board.copy()
+                copy.push(move)
+                heur = self.combined_heuristic(copy)
                 move_values[move] += heur
 
         return max(move_values, key=move_values.get)
-
 
 if __name__ == "__main__":
     fog_game = FogChess()
     agent = FogAgent(fog_game, "black")
     game_not_over = True
+    user_last_move = None
     agent_last_move = None
     while game_not_over:
         if fog_game.board.turn:
@@ -383,15 +435,13 @@ if __name__ == "__main__":
             possible_last_states = agent.possible_hists[-1]
             print("possible last states: " + str(len(possible_last_states)))
 
-
         while move_not_made_yet:
             inp = input("Input move: ")
 
             move = chess.Move.from_uci(inp)
 
             if fog_game.board.is_pseudo_legal(move):
-                if not fog_game.board.turn:
-                    user_last_move = move
+                user_last_move = move
                 fog_game.move(move)
                 agent.update_game(fog_game)
                 break
