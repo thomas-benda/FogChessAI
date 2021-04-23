@@ -439,10 +439,7 @@ class FogAgent:
         return len(vis_set)
 
     def combined_heuristic(self, board):
-        h = 20 * self.material_advantage(board) + \
-            20 * self.pieces_under_attack(board) + \
-            5 * self.center_control_hueristic(board) + \
-            2 * self.piece_square_heuristic(board) + \
+        h = 20 * self.pieces_under_attack(board) + \
             5 * self.board_visibility_heuristic(board)
 
         return h
@@ -451,6 +448,14 @@ class FogAgent:
         move_values = collections.Counter()
 
         for move in self.game.board.pseudo_legal_moves:
+            # some heuristics don't care about the opponents pieces whatsoever
+            copy = self.game.board.copy()
+            copy.push(move)
+            heur = len(self.possible_hists[-1]) * \
+                   (20 * self.material_advantage(copy) +
+                    2 * self.piece_square_heuristic(copy) +
+                    5 * self.center_control_hueristic(copy))
+            move_values[move] = heur
             for board in self.possible_hists[-1]:
                 copy = board.copy()
                 copy.push(move)
