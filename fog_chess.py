@@ -348,13 +348,17 @@ class FogAgent:
     def center_control_hueristic(self, board):
         center_ctrl_count = 0
         center_spaces = ['d4', 'd5', 'e4', 'e5']
+        pieces_in_center = set()
         # make move list from our perspective, not the opponents
         board.push(chess.Move.null())
+
         for move in board.pseudo_legal_moves:
+            if str(move)[0:2] in center_spaces:
+                pieces_in_center.add(str(move)[0:2])
             if str(move)[2:4] in center_spaces:
                 center_ctrl_count += 1
 
-        return center_ctrl_count
+        return center_ctrl_count + len(pieces_in_center)
 
     def material_advantage(self, board):
         board_str = str(board)
@@ -388,10 +392,21 @@ class FogAgent:
 
         return advantage
 
+    def board_visibility_heuristic(self, board):
+        board_str = str(board)
+        vis_count = 0
+        for i in range(len(board_str)):
+            if board_str[i] != "?":
+                vis_count += 1
+
+        return vis_count
+
     def combined_heuristic(self, board):
         return 20 * self.material_advantage(board) + \
-               3 * self.center_control_hueristic(board) + \
-               1 * self.piece_square_heuristic(board)
+               10 * self.center_control_hueristic(board) + \
+               1 * self.piece_square_heuristic(board) + \
+               3 * self.board_visibility_heuristic(board)
+
 
     def best_move(self):
         move_values = collections.Counter()
