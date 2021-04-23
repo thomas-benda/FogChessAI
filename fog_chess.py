@@ -1,4 +1,6 @@
 import math
+import random
+
 import chess
 from stockfish import Stockfish
 import collections
@@ -307,7 +309,7 @@ class FogAgent:
         board_str = str(board)
         board_score = 0
         if self.color == "white":
-            for i in range(len(board_str)):
+            for i in range(0, len(board_str), 2):
                 square = board_str[i]
                 if square.isupper():
                     pst_row = str_index_to_pst_index[i][0]
@@ -325,7 +327,7 @@ class FogAgent:
                     elif square == "K":
                         board_score += kingEvalWhite[pst_row][pst_col]
         elif self.color == "black":
-            for i in range(len(board_str)):
+            for i in range(0, len(board_str), 2):
                 square = board_str[i]
                 if square.islower():
                     pst_row = str_index_to_pst_index[i][0]
@@ -358,12 +360,12 @@ class FogAgent:
             if str(move)[2:4] in center_spaces:
                 center_ctrl_count += 1
 
-        return center_ctrl_count + len(pieces_in_center)
+        return center_ctrl_count + 4 * len(pieces_in_center)
 
     def material_advantage(self, board):
         board_str = str(board)
         advantage = 0
-        for i in range(len(board_str)):
+        for i in range(0, len(board_str), 2):
             square = board_str[i]
             if square == "P":
                 advantage += 1
@@ -392,21 +394,58 @@ class FogAgent:
 
         return advantage
 
-    def board_visibility_heuristic(self, board):
-        board_str = str(board)
-        vis_count = 0
-        for i in range(len(board_str)):
-            if board_str[i] != "?":
-                vis_count += 1
+    # returns a negative value because being under attack is bad
+    def pieces_under_attack(self, board):
+        opp_moves = set()
+        for opp_move in board.pseudo_legal_moves:
+            opp_moves.add(str(opp_move)[2:4])
 
-        return vis_count
+        board_str = str(board)
+        under_attack = 0
+        for i in range(0, len(board_str), 2):
+            if index_to_chess_pos[i] in opp_moves:
+                square = board_str[i]
+                if self.color == "white":
+                    if square == "P":
+                        under_attack -= 1 ** 2
+                    elif square == "N" or square == "B":
+                        under_attack -= 3 ** 2
+                    elif square == "R":
+                        under_attack -= 5 ** 2
+                    elif square == "Q":
+                        under_attack -= 9 ** 2
+                    elif square == "K":
+                        under_attack -= 100 ** 2
+                else:
+                    if square == "p":
+                        under_attack -= 1 ** 2
+                    elif square == "n" or square == "b":
+                        under_attack -= 3 ** 2
+                    elif square == "r":
+                        under_attack -= 5 ** 2
+                    elif square == "q":
+                        under_attack -= 9 ** 2
+                    elif square == "k":
+                        under_attack -= 100 ** 2
+
+        return under_attack
+
+    def board_visibility_heuristic(self, board):
+        vis_set = set()
+        board.push(chess.Move.null())
+        for move in board.pseudo_legal_moves:
+            vis_set.add(str(move)[0:2])
+            vis_set.add(str(move)[2:4])
+        return len(vis_set)
 
     def combined_heuristic(self, board):
-        return 20 * self.material_advantage(board) + \
-               10 * self.center_control_hueristic(board) + \
-               1 * self.piece_square_heuristic(board) + \
-               3 * self.board_visibility_heuristic(board)
+        h = 20 * self.material_advantage(board) + \
+            20 * self.pieces_under_attack(board) + \
+            5 * self.center_control_hueristic(board) + \
+            2 * self.piece_square_heuristic(board) + \
+            5 * self.board_visibility_heuristic(board)
 
+        return h
 
     def best_move(self):
         move_values = collections.Counter()
@@ -418,7 +457,16 @@ class FogAgent:
                 heur = self.combined_heuristic(copy)
                 move_values[move] += heur
 
-        return max(move_values, key=move_values.get)
+        best_score = max(move_values.values())
+        good_moves = []
+        for key in move_values:
+            if move_values[key] == best_score:
+                good_moves.append(key)
+
+        random.shuffle(good_moves)
+
+        return good_moves[0]
+
 
 if __name__ == "__main__":
     fog_game = FogChess()
