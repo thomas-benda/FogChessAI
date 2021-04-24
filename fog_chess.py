@@ -347,6 +347,48 @@ class FogAgent:
 
         return board_score
 
+    def opp_piece_square_heuristic(self, board):
+        board_str = str(board)
+        board_score = 0
+        if self.color == "black":
+            for i in range(0, len(board_str), 2):
+                square = board_str[i]
+                if square.isupper():
+                    pst_row = str_index_to_pst_index[i][0]
+                    pst_col = str_index_to_pst_index[i][1]
+                    if square == "P":
+                        board_score += pawnEvalWhite[pst_row][pst_col]
+                    elif square == "N":
+                        board_score += knightEval[pst_row][pst_col]
+                    elif square == "B":
+                        board_score += bishopEvalWhite[pst_row][pst_col]
+                    elif square == "R":
+                        board_score += rookEvalWhite[pst_row][pst_col]
+                    elif square == "Q":
+                        board_score += evalQueen[pst_row][pst_col]
+                    elif square == "K":
+                        board_score += kingEvalWhite[pst_row][pst_col]
+        elif self.color == "white":
+            for i in range(0, len(board_str), 2):
+                square = board_str[i]
+                if square.islower():
+                    pst_row = str_index_to_pst_index[i][0]
+                    pst_col = str_index_to_pst_index[i][1]
+                    if square == "p":
+                        board_score += pawnEvalBlack[pst_row][pst_col]
+                    elif square == "n":
+                        board_score += knightEval[pst_row][pst_col]
+                    elif square == "b":
+                        board_score += bishopEvalBlack[pst_row][pst_col]
+                    elif square == "r":
+                        board_score += rookEvalBlack[pst_row][pst_col]
+                    elif square == "q":
+                        board_score += evalQueen[pst_row][pst_col]
+                    elif square == "k":
+                        board_score += kingEvalBlack[pst_row][pst_col]
+
+        return board_score
+
     def center_control_hueristic(self, board):
         center_ctrl_count = 0
         center_spaces = ['d4', 'd5', 'e4', 'e5']
@@ -360,7 +402,9 @@ class FogAgent:
             if str(move)[2:4] in center_spaces:
                 center_ctrl_count += 1
 
-        return center_ctrl_count + 4 * len(pieces_in_center)
+        board.pop()
+
+        return center_ctrl_count + 5 * len(pieces_in_center)
 
     def material_advantage(self, board):
         board_str = str(board)
@@ -430,12 +474,51 @@ class FogAgent:
 
         return under_attack
 
+    # returns a negative value because being under attack is bad
+    def opp_attacking_our_pieces(self, board):
+        opp_moves = set()
+        board.push(chess.Move.null())
+        for opp_move in board.pseudo_legal_moves:
+            opp_moves.add(str(opp_move)[2:4])
+        board.pop()
+
+        board_str = str(board)
+        under_attack = 0
+        for i in range(0, len(board_str), 2):
+            if index_to_chess_pos[i] in opp_moves:
+                square = board_str[i]
+                if self.color == "white":
+                    if square == "P":
+                        under_attack += 1 ** 2
+                    elif square == "N" or square == "B":
+                        under_attack += 3 ** 2
+                    elif square == "R":
+                        under_attack += 5 ** 2
+                    elif square == "Q":
+                        under_attack += 9 ** 2
+                    elif square == "K":
+                        under_attack += 100 ** 2
+                else:
+                    if square == "p":
+                        under_attack += 1 ** 2
+                    elif square == "n" or square == "b":
+                        under_attack += 3 ** 2
+                    elif square == "r":
+                        under_attack += 5 ** 2
+                    elif square == "q":
+                        under_attack += 9 ** 2
+                    elif square == "k":
+                        under_attack += 100 ** 2
+        print(under_attack)
+        return under_attack
+
     def board_visibility_heuristic(self, board):
         vis_set = set()
         board.push(chess.Move.null())
         for move in board.pseudo_legal_moves:
             vis_set.add(str(move)[0:2])
             vis_set.add(str(move)[2:4])
+        board.pop()
         return len(vis_set)
 
     def combined_heuristic(self, board):
@@ -445,32 +528,96 @@ class FogAgent:
         return h
 
     def best_move(self):
-        move_values = collections.Counter()
+        opp_heur_vals = []
+        for board in self.possible_hists[-1]:
+            opp_heur_vals.append(self.opp_heuristic(board))
+
+        opp_heur_vals.sort()
+        top_vals = opp_heur_vals[-3:]
+
+        top_boards = []
+        for board in self.possible_hists[-1]:
+            opp_heur = self.opp_heuristic(board)
+            if opp_heur in top_vals:
+                top_boards.append(board)
+
+
+        move_values = {}
 
         for move in self.game.board.pseudo_legal_moves:
-            # some heuristics don't care about the opponents pieces whatsoever
-            copy = self.game.board.copy()
-            copy.push(move)
-            heur = len(self.possible_hists[-1]) * \
-                   (20 * self.material_advantage(copy) +
-                    2 * self.piece_square_heuristic(copy) +
-                    5 * self.center_control_hueristic(copy))
-            move_values[move] = heur
-            for board in self.possible_hists[-1]:
+            print(move)
+            move_values[move] = []
+            # # some heuristics don't care about the opponents pieces whatsoever
+            # copy = self.game.board.copy()
+            # copy.push(move)
+            # heur = len(self.possible_hists[-1]) * \
+            #        (20 * self.material_advantage(copy) +
+            #         2 * self.piece_square_heuristic(copy) +
+            #         5 * self.center_control_hueristic(copy))
+            # move_values[move] = heur
+            for board in top_boards:
                 copy = board.copy()
                 copy.push(move)
-                heur = self.combined_heuristic(copy)
-                move_values[move] += heur
+                # heur = self.combined_heuristic(copy)
+                # move_values[move] += heur
+                move_values[move].append(self.minimax(copy, 0))
 
-        best_score = max(move_values.values())
-        good_moves = []
-        for key in move_values:
-            if move_values[key] == best_score:
-                good_moves.append(key)
+        top_move = None
+        best_val = -1 * float('inf')
+        for move in move_values:
+            val = max(move_values[move])
+            if val > best_val:
+                top_move = move
+                best_val = val
 
-        random.shuffle(good_moves)
+        return top_move
 
-        return good_moves[0]
+        # best_score = max(move_values.values())
+        # good_moves = []
+        # for key in move_values:
+        #     if move_values[key] == best_score:
+        #         good_moves.append(key)
+        #
+        # random.shuffle(good_moves)
+        #
+        # return good_moves[0]
+
+    def minimax(self, board, depth, minimize=True):
+        if depth > 0:
+            heuristic_values = []
+            for move in board.pseudo_legal_moves:
+                copy = board.copy()
+                copy.push(move)
+                if minimize:
+                    heuristic_values.append(self.minimax(copy, depth - 1, not minimize))
+                else:
+                    heuristic_values.append(self.minimax(copy, depth - 1, not minimize))
+            if minimize:
+                return min(heuristic_values)
+            else:
+                return max(heuristic_values)
+
+        else:
+            heuristic_values = []
+            for move in board.pseudo_legal_moves:
+                copy = board.copy()
+                copy.push(move)
+                heuristic_values.append(self.heuristic(copy))
+            if minimize:
+                return min(heuristic_values)
+            else:
+                return max(heuristic_values)
+
+    def heuristic(self, board):
+        return 100 * self.material_advantage(board) + \
+                2 * self.piece_square_heuristic(board) + \
+                10 * self.center_control_hueristic(board)
+
+    def opp_heuristic(self, board):
+        return 2 * self.opp_piece_square_heuristic(board) + \
+               5 * self.center_control_hueristic(board) + \
+               50 * self.opp_attacking_our_pieces(board)
+
 
 
 if __name__ == "__main__":
