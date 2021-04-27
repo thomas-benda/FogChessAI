@@ -199,7 +199,7 @@ class FogAgent:
         self.game = game
         self.color = color
         self.hist = []
-        self.possible_hists = [[chess.Board()]]
+        self.possible_hists = [[game.board.copy()]]
         self.update_game(game)
 
     def update_game(self, game):
@@ -509,7 +509,6 @@ class FogAgent:
                         under_attack += 9 ** 2
                     elif square == "k":
                         under_attack += 100 ** 2
-        print(under_attack)
         return under_attack
 
     def board_visibility_heuristic(self, board):
@@ -533,7 +532,7 @@ class FogAgent:
             opp_heur_vals.append(self.opp_heuristic(board))
 
         opp_heur_vals.sort()
-        top_vals = opp_heur_vals[-3:]
+        top_vals = opp_heur_vals[-10:]
 
         top_boards = []
         for board in self.possible_hists[-1]:
@@ -560,7 +559,7 @@ class FogAgent:
                 copy.push(move)
                 # heur = self.combined_heuristic(copy)
                 # move_values[move] += heur
-                move_values[move].append(self.minimax(copy, 0))
+                move_values[move].append(self.minimax(copy, 1))
 
         top_move = None
         best_val = -1 * float('inf')
@@ -621,7 +620,10 @@ class FogAgent:
 
 
 if __name__ == "__main__":
-    fog_game = FogChess()
+    fewer_pieces_fen = "1nb1kbn1/pppppppp/8/8/8/8/PPPPPPPP/1NB1KBN1 w KQkq - 0 1"
+    fewer_pieces_board = chess.Board(fewer_pieces_fen)
+    fog_game = FogChess(fewer_pieces_board)
+    # fog_game = FogChess()
     agent = FogAgent(fog_game, "black")
     game_not_over = True
     user_last_move = None
@@ -648,7 +650,7 @@ if __name__ == "__main__":
 
         if len(agent.possible_hists) > 1:
             possible_last_states = agent.possible_hists[-1]
-            print("possible last states: " + str(len(possible_last_states)))
+            # print("possible last states: " + str(len(possible_last_states)))
 
         while move_not_made_yet:
             inp = input("Input move: ")
