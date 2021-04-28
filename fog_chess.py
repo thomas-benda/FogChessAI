@@ -1,5 +1,6 @@
 import math
 import random
+from operator import itemgetter
 
 import chess
 from stockfish import Stockfish
@@ -532,7 +533,7 @@ class FogAgent:
             opp_heur_vals.append(self.opp_heuristic(board))
 
         opp_heur_vals.sort()
-        top_vals = opp_heur_vals[-10:]
+        top_vals = opp_heur_vals[-7:]
 
         top_boards = []
         for board in self.possible_hists[-1]:
@@ -543,7 +544,7 @@ class FogAgent:
 
         move_values = {}
 
-        for move in self.game.board.pseudo_legal_moves:
+        for move in self.moves_to_consider(self.game.board):
             print(move)
             move_values[move] = []
             # # some heuristics don't care about the opponents pieces whatsoever
@@ -580,6 +581,94 @@ class FogAgent:
         # random.shuffle(good_moves)
         #
         # return good_moves[0]
+
+    def move_heuristic(self, move, vis_board):
+        move_str = str(move)
+        start_square = move_str[0:2]
+        end_square = move_str[2:4]
+
+        copy = vis_board.copy()
+
+        copy.push(move)
+        copy.push(chess.Move.null())
+
+        copy_game = FogChess(copy)
+        if self.color == "white":
+            copy_game.update_white_board()
+            copy_board = copy_game.white_board
+        else:
+            copy_game.update_black_board()
+            copy_board = copy_game.black_board
+
+        visibility_change = copy_board.count("?") - self.board.count("?")
+
+        # get pieces out of danger
+        opponent_visible_pieces_squares = []
+        for i in range(0, len(self.board), 2):
+            if self.color == "white":
+                if self.board[i].islower():
+                    opponent_visible_pieces_squares.append(index_to_chess_pos[i])
+            else:
+                if self.board[i].isupper():
+                    opponent_visible_pieces_squares.append(index_to_chess_pos[i])
+
+        material_saved = 0
+        copy = self.game.board.copy()
+        copy.push(chess.Move.null())
+        for move in copy.pseudo_legal_moves:
+            move_str = str(move)
+            if move_str[0:2] in opponent_visible_pieces_squares and move_str[2:4] == start_square:
+                parsed_start_square = chess.parse_square(start_square)
+                piece = str(copy.piece_at(parsed_start_square))
+                if piece.lower() == "p":
+                    material_saved = 1
+                elif piece.lower() == "b" or piece.lower() == "n":
+                    material_saved = 3
+                elif piece.lower() == "r":
+                    material_saved = 5
+                elif piece.lower() == "q":
+                    material_saved = 9
+                else:
+                    material_saved = 100000000
+
+        captured_material = 0
+        parsed_end_square = chess.parse_square(end_square)
+        opp_piece = str(self.game.board.piece_at(parsed_end_square))
+        if opp_piece is not None:
+            if opp_piece.lower() == "p":
+                captured_material = 1
+            elif opp_piece.lower() == "b" or opp_piece.lower() == "n":
+                captured_material = 3
+            elif opp_piece.lower() == "r":
+                captured_material = 5
+            elif opp_piece.lower() == "q":
+                captured_material = 9
+            else:
+                captured_material = 100000000
+
+        return captured_material * 10 + material_saved * 8 + visibility_change * -2
+
+
+    def moves_to_consider(self, board):
+        vis_board = board.copy()
+
+        new_game = FogChess(board)
+        if board.turn:
+            our_board = new_game.white_board
+        else:
+            our_board = new_game.black_board
+
+        for i in range(0, len(our_board), 2):
+            if our_board[i] == "?":
+                vis_board.remove_piece_at(chess.parse_square(index_to_chess_pos[i]))
+
+        move_scores = {}
+        for move in board.pseudo_legal_moves:
+            h = self.move_heuristic(move, vis_board)
+            move_scores[move] = h
+
+        return list(dict(sorted(move_scores.items(), key = itemgetter(1), reverse = True)[:5]).keys())
+
 
     def minimax(self, board, depth, minimize=True):
         if depth > 0:
