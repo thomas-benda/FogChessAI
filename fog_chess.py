@@ -719,6 +719,8 @@ class FogAgent:
         return opp_board_heuristics[b]
 
 if __name__ == "__main__":
+    game_start_time = time.perf_counter()
+
     fog_game = FogChess()
     white_agent = FogAgent(fog_game, "white")
     black_agent = FogAgent(fog_game, "black")
@@ -760,9 +762,13 @@ if __name__ == "__main__":
 
         if fog_game.white_wins():
             print("White wins!")
+            game_end_time = time.perf_counter()
+            print(f"Game took {game_end_time - game_start_time:0.4f} seconds")
             break
         elif fog_game.black_wins():
             print("Black wins!")
+            game_end_time = time.perf_counter()
+            print(f"Game took {game_end_time - game_start_time:0.4f} seconds")
             break
 
 
