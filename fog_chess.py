@@ -6,7 +6,7 @@ import chess
 from stockfish import Stockfish
 import collections
 import copy
-
+import time
 str_index_to_pst_index = {}
 
 pst_index = 0, 0
@@ -20,6 +20,12 @@ def reverse_pst(pst):
     return copy
 
 
+NUM_MOVES_CONSIDERING = 3
+NUM_BOARDS_CONSIDERING = 2
+DEPTH = 3
+
+start_time = time.perf_counter()
+move_time = time.perf_counter()
 pawnEvalWhite =[[0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
     [5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0],
     [1.0,  1.0,  2.0,  3.0,  3.0,  2.0,  1.0,  1.0],
@@ -92,6 +98,10 @@ kingEvalWhite = [
     [  2.0,  3.0,  1.0,  0.0,  0.0,  1.0,  3.0,  2.0 ]
 ]
 
+board_heuristics = {}
+opp_board_heuristics = {}
+moves_to_consider = {}
+opp_moves_to_consider = {}
 kingEvalBlack = reverse_pst(kingEvalWhite)
 # this all creates a dictionary mapping the index of a character in the string representation of the board to the
 # name of the square e.g index 0 is associated with a8, index 2 b8, ...
@@ -210,6 +220,7 @@ class FogAgent:
         else:
             self.board = self.game.black_board
 
+
     def update_hist(self):
         self.hist.append(self.board)
 
@@ -307,7 +318,7 @@ class FogAgent:
     #             return 50
 
     def piece_square_heuristic(self, board):
-        board_str = str(board)
+        board_str = board
         board_score = 0
         if self.color == "white":
             for i in range(0, len(board_str), 2):
@@ -349,7 +360,7 @@ class FogAgent:
         return board_score
 
     def opp_piece_square_heuristic(self, board):
-        board_str = str(board)
+        board_str = board
         board_score = 0
         if self.color == "black":
             for i in range(0, len(board_str), 2):
@@ -476,14 +487,14 @@ class FogAgent:
         return under_attack
 
     # returns a negative value because being under attack is bad
-    def opp_attacking_our_pieces(self, board):
+    def opp_attacking_our_pieces(self, board, b):
         opp_moves = set()
         board.push(chess.Move.null())
         for opp_move in board.pseudo_legal_moves:
             opp_moves.add(str(opp_move)[2:4])
         board.pop()
 
-        board_str = str(board)
+        board_str = b
         under_attack = 0
         for i in range(0, len(board_str), 2):
             if index_to_chess_pos[i] in opp_moves:
@@ -529,11 +540,12 @@ class FogAgent:
 
     def best_move(self):
         opp_heur_vals = []
+        start_time = time.perf_counter()
         for board in self.possible_hists[-1]:
             opp_heur_vals.append(self.opp_heuristic(board))
 
         opp_heur_vals.sort()
-        top_vals = opp_heur_vals[-7:]
+        top_vals = opp_heur_vals[-NUM_BOARDS_CONSIDERING:]
 
         top_boards = []
         for board in self.possible_hists[-1]:
@@ -545,23 +557,18 @@ class FogAgent:
         move_values = {}
 
         for move in self.moves_to_consider(self.game.board):
+            move_time = time.perf_counter()
+            print("=======")
             print(move)
+            print("=======")
             move_values[move] = []
-            # # some heuristics don't care about the opponents pieces whatsoever
-            # copy = self.game.board.copy()
-            # copy.push(move)
-            # heur = len(self.possible_hists[-1]) * \
-            #        (20 * self.material_advantage(copy) +
-            #         2 * self.piece_square_heuristic(copy) +
-            #         5 * self.center_control_hueristic(copy))
-            # move_values[move] = heur
             for board in top_boards:
                 copy = board.copy()
                 copy.push(move)
-                # heur = self.combined_heuristic(copy)
-                # move_values[move] += heur
-                move_values[move].append(self.minimax(copy, 1))
-
+                move_values[move].append(self.minimax(copy, DEPTH))
+            print("++++++++++++")
+            print(f"{move} took {time.perf_counter() - move_time:0.4f} seconds")
+            print("++++++++++++")
         top_move = None
         best_val = -1 * float('inf')
         for move in move_values:
@@ -569,19 +576,9 @@ class FogAgent:
             if val > best_val:
                 top_move = move
                 best_val = val
-
+        print(f"that all took {time.perf_counter() - start_time:0.4f} seconds")
         return top_move
-
-        # best_score = max(move_values.values())
-        # good_moves = []
-        # for key in move_values:
-        #     if move_values[key] == best_score:
-        #         good_moves.append(key)
-        #
-        # random.shuffle(good_moves)
-        #
-        # return good_moves[0]
-
+        
     def move_heuristic(self, move, vis_board):
         move_str = str(move)
         start_square = move_str[0:2]
@@ -657,6 +654,8 @@ class FogAgent:
             our_board = new_game.white_board
         else:
             our_board = new_game.black_board
+        if our_board in moves_to_consider:
+            return moves_to_consider[our_board]
 
         for i in range(0, len(our_board), 2):
             if our_board[i] == "?":
@@ -666,14 +665,21 @@ class FogAgent:
         for move in board.pseudo_legal_moves:
             h = self.move_heuristic(move, vis_board)
             move_scores[move] = h
-
-        return list(dict(sorted(move_scores.items(), key = itemgetter(1), reverse = True)[:5]).keys())
-
+        print("moves considered")
+        moves_to_consider[our_board] = list(dict(sorted(move_scores.items(), key = itemgetter(1), reverse = True)[:NUM_MOVES_CONSIDERING]).keys())
+        return moves_to_consider[our_board]
 
     def minimax(self, board, depth, minimize=True):
+        print("Min" if minimize else "Max")
+        moves = []
+        if board.turn and self.color == "white" \
+            or (not board.turn and self.color == "black"):
+            moves = self.moves_to_consider(board)
+        else:
+            moves = self.moves_to_consider(board)
         if depth > 0:
             heuristic_values = []
-            for move in board.pseudo_legal_moves:
+            for move in moves:
                 copy = board.copy()
                 copy.push(move)
                 if minimize:
@@ -687,7 +693,7 @@ class FogAgent:
 
         else:
             heuristic_values = []
-            for move in board.pseudo_legal_moves:
+            for move in moves:
                 copy = board.copy()
                 copy.push(move)
                 heuristic_values.append(self.heuristic(copy))
@@ -697,26 +703,33 @@ class FogAgent:
                 return max(heuristic_values)
 
     def heuristic(self, board):
-        return 100 * self.material_advantage(board) + \
-                2 * self.piece_square_heuristic(board) + \
-                10 * self.center_control_hueristic(board)
+        b = str(board)
+        if b not in board_heuristics:
+            board_heuristics[b] =  100 * self.material_advantage(b) + \
+                    2 * self.piece_square_heuristic(b) + \
+                    10 * self.center_control_hueristic(board)
+        return board_heuristics[b]
 
     def opp_heuristic(self, board):
-        return 2 * self.opp_piece_square_heuristic(board) + \
+        b = str(board)
+        if b not in opp_board_heuristics:
+            opp_board_heuristics[b] =  2 * self.opp_piece_square_heuristic(b) + \
                5 * self.center_control_hueristic(board) + \
-               50 * self.opp_attacking_our_pieces(board)
+               50 * self.opp_attacking_our_pieces(board, b)
+        return opp_board_heuristics[b]
 
 
 
 if __name__ == "__main__":
-    fewer_pieces_fen = "1nb1kbn1/pppppppp/8/8/8/8/PPPPPPPP/1NB1KBN1 w KQkq - 0 1"
-    fewer_pieces_board = chess.Board(fewer_pieces_fen)
-    fog_game = FogChess(fewer_pieces_board)
-    # fog_game = FogChess()
+    # fewer_pieces_fen = "1nb1kbn1/pppppppp/8/8/8/8/PPPPPPPP/1NB1KBN1 w KQkq - 0 1"
+    # fewer_pieces_board = chess.Board(fewer_pieces_fen)
+    # fog_game = FogChess(fewer_pieces_board)
+    fog_game = FogChess()
     agent = FogAgent(fog_game, "black")
     game_not_over = True
     user_last_move = None
     agent_last_move = None
+
     while game_not_over:
         if fog_game.board.turn:
             print(fog_game.black_board)
