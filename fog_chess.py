@@ -27,14 +27,14 @@ DEPTH = 3
 start_time = time.perf_counter()
 move_time = time.perf_counter()
 pawnEvalWhite =[[0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
-    [5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0],
-    [1.0,  1.0,  2.0,  3.0,  3.0,  2.0,  1.0,  1.0],
-    [0.5,  0.5,  1.0,  2.5,  2.5,  1.0,  0.5,  0.5],
-    [0.0,  0.0,  0.0,  2.0,  2.0,  0.0,  0.0,  0.0],
-    [0.5, -0.5, -1.0,  0.0,  0.0, -1.0, -0.5,  0.5],
-    [0.5,  1.0, 1.0,  -2.0, -2.0,  1.0,  1.0,  0.5],
-    [0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
-]
+                [5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0],
+                [1.0,  1.0,  2.0,  3.0,  3.0,  2.0,  1.0,  1.0],
+                [0.5,  0.5,  1.0,  2.5,  2.5,  1.0,  0.5,  0.5],
+                [0.0,  0.0,  0.0,  2.0,  2.0,  0.0,  0.0,  0.0],
+                [0.5, -0.5, -1.0,  0.0,  0.0, -1.0, -0.5,  0.5],
+                [0.5,  1.0, 1.0,  -2.0, -2.0,  1.0,  1.0,  0.5],
+                [0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+                ]
 
 pawnEvalBlack = reverse_pst(pawnEvalWhite)
 
@@ -558,9 +558,9 @@ class FogAgent:
 
         for move in self.moves_to_consider(self.game.board):
             move_time = time.perf_counter()
-            print("=======")
-            print(move)
-            print("=======")
+            # print("=======")
+            # print(move)
+            # print("=======")
             move_values[move] = []
             for board in top_boards:
                 copy = board.copy()
@@ -578,7 +578,7 @@ class FogAgent:
                 best_val = val
         print(f"that all took {time.perf_counter() - start_time:0.4f} seconds")
         return top_move
-        
+
     def move_heuristic(self, move, vis_board):
         move_str = str(move)
         start_square = move_str[0:2]
@@ -665,15 +665,15 @@ class FogAgent:
         for move in board.pseudo_legal_moves:
             h = self.move_heuristic(move, vis_board)
             move_scores[move] = h
-        print("moves considered")
+        # print("moves considered")
         moves_to_consider[our_board] = list(dict(sorted(move_scores.items(), key = itemgetter(1), reverse = True)[:NUM_MOVES_CONSIDERING]).keys())
         return moves_to_consider[our_board]
 
     def minimax(self, board, depth, minimize=True):
-        print("Min" if minimize else "Max")
+        # print("Min" if minimize else "Max")
         moves = []
         if board.turn and self.color == "white" \
-            or (not board.turn and self.color == "black"):
+                or (not board.turn and self.color == "black"):
             moves = self.moves_to_consider(board)
         else:
             moves = self.moves_to_consider(board)
@@ -706,66 +706,57 @@ class FogAgent:
         b = str(board)
         if b not in board_heuristics:
             board_heuristics[b] =  100 * self.material_advantage(b) + \
-                    2 * self.piece_square_heuristic(b) + \
-                    10 * self.center_control_hueristic(board)
+                                   2 * self.piece_square_heuristic(b) + \
+                                   10 * self.center_control_hueristic(board)
         return board_heuristics[b]
 
     def opp_heuristic(self, board):
         b = str(board)
         if b not in opp_board_heuristics:
             opp_board_heuristics[b] =  2 * self.opp_piece_square_heuristic(b) + \
-               5 * self.center_control_hueristic(board) + \
-               50 * self.opp_attacking_our_pieces(board, b)
+                                       5 * self.center_control_hueristic(board) + \
+                                       50 * self.opp_attacking_our_pieces(board, b)
         return opp_board_heuristics[b]
 
-
-
 if __name__ == "__main__":
-    # fewer_pieces_fen = "1nb1kbn1/pppppppp/8/8/8/8/PPPPPPPP/1NB1KBN1 w KQkq - 0 1"
-    # fewer_pieces_board = chess.Board(fewer_pieces_fen)
-    # fog_game = FogChess(fewer_pieces_board)
     fog_game = FogChess()
-    agent = FogAgent(fog_game, "black")
+    white_agent = FogAgent(fog_game, "white")
+    black_agent = FogAgent(fog_game, "black")
     game_not_over = True
-    user_last_move = None
-    agent_last_move = None
+    last_move = None
 
     while game_not_over:
         if fog_game.board.turn:
-            print(fog_game.black_board)
-            print("\n")
             print(fog_game.white_board)
-            agent.update_after_our_move(agent_last_move)
-            agent.update_hist()
-            move_not_made_yet = True
-        else:
-            # print(fog_game.black_board)
-            agent.update_after_their_move()
-            agent.update_hist()
+            white_agent.update_after_their_move()
+            black_agent.update_after_our_move(last_move)
+            white_agent.update_hist()
+            black_agent.update_hist()
 
-            best_move = agent.best_move()
-            agent_last_move = best_move
+            best_move = white_agent.best_move()
+            print("==========================")
+            print("White's move: " + str(best_move))
+            print("==========================")
+            last_move = best_move
             fog_game.move(best_move)
-            agent.update_game(fog_game)
+            white_agent.update_game(fog_game)
+            black_agent.update_game(fog_game)
 
-            move_not_made_yet = False
+        else:
+            print(fog_game.black_board)
+            white_agent.update_after_our_move(last_move)
+            black_agent.update_after_their_move()
+            white_agent.update_hist()
+            black_agent.update_hist()
 
-        if len(agent.possible_hists) > 1:
-            possible_last_states = agent.possible_hists[-1]
-            # print("possible last states: " + str(len(possible_last_states)))
-
-        while move_not_made_yet:
-            inp = input("Input move: ")
-
-            move = chess.Move.from_uci(inp)
-
-            if fog_game.board.is_pseudo_legal(move):
-                user_last_move = move
-                fog_game.move(move)
-                agent.update_game(fog_game)
-                break
-            else:
-                print("Illegal move, try again")
+            best_move = black_agent.best_move()
+            print("==========================")
+            print("Black's move: " + str(best_move))
+            print("==========================")
+            last_move = best_move
+            fog_game.move(best_move)
+            white_agent.update_game(fog_game)
+            black_agent.update_game(fog_game)
 
         if fog_game.white_wins():
             print("White wins!")
@@ -773,3 +764,60 @@ if __name__ == "__main__":
         elif fog_game.black_wins():
             print("Black wins!")
             break
+
+
+
+
+# if __name__ == "__main__":
+#     # fewer_pieces_fen = "1nb1kbn1/pppppppp/8/8/8/8/PPPPPPPP/1NB1KBN1 w KQkq - 0 1"
+#     # fewer_pieces_board = chess.Board(fewer_pieces_fen)
+#     # fog_game = FogChess(fewer_pieces_board)
+#     fog_game = FogChess()
+#     agent = FogAgent(fog_game, "black")
+#     game_not_over = True
+#     user_last_move = None
+#     agent_last_move = None
+#
+#     while game_not_over:
+#         if fog_game.board.turn:
+#             print(fog_game.black_board)
+#             print("\n")
+#             print(fog_game.white_board)
+#             agent.update_after_our_move(agent_last_move)
+#             agent.update_hist()
+#             move_not_made_yet = True
+#         else:
+#             # print(fog_game.black_board)
+#             agent.update_after_their_move()
+#             agent.update_hist()
+#
+#             best_move = agent.best_move()
+#             agent_last_move = best_move
+#             fog_game.move(best_move)
+#             agent.update_game(fog_game)
+#
+#             move_not_made_yet = False
+#
+#         if len(agent.possible_hists) > 1:
+#             possible_last_states = agent.possible_hists[-1]
+#             # print("possible last states: " + str(len(possible_last_states)))
+#
+#         while move_not_made_yet:
+#             inp = input("Input move: ")
+#
+#             move = chess.Move.from_uci(inp)
+#
+#             if fog_game.board.is_pseudo_legal(move):
+#                 user_last_move = move
+#                 fog_game.move(move)
+#                 agent.update_game(fog_game)
+#                 break
+#             else:
+#                 print("Illegal move, try again")
+#
+#         if fog_game.white_wins():
+#             print("White wins!")
+#             break
+#         elif fog_game.black_wins():
+#             print("Black wins!")
+#             break
