@@ -613,10 +613,16 @@ class FogAgent:
         material_saved = 0
         copy = self.game.board.copy()
         copy.push(chess.Move.null())
+
+        squares_we_know_opponent_can_attack = set()
+        for move in copy.pseudo_legal_moves:
+            if move_str[0:2] in opponent_visible_pieces_squares:
+                squares_we_know_opponent_can_attack.add(str(move)[2:4])
+
         for move in copy.pseudo_legal_moves:
             move_str = str(move)
             if move_str[0:2] in opponent_visible_pieces_squares and move_str[2:4] == start_square \
-                    and end_square not in opponent_visible_pieces_squares:
+                    and end_square not in squares_we_know_opponent_can_attack:
                 parsed_start_square = chess.parse_square(start_square)
                 piece = str(copy.piece_at(parsed_start_square))
                 if piece.lower() == "p":
@@ -767,9 +773,12 @@ def simulate_game(white_agent, black_agent, game, move_list):
             white_agent.update_game(game)
             black_agent.update_game(game)
 
+def string_list_to_move_list(str_list):
+    move_list = []
+    for s in str_list:
+        move_list.append(chess.Move.from_uci(s))
 
-
-
+    return move_list
 
 if __name__ == "__main__":
     game_start_time = time.perf_counter()
@@ -780,9 +789,14 @@ if __name__ == "__main__":
     game_not_over = True
     last_move = None
 
-    # move_list = [chess.Move.from_uci('e2e4'), chess.Move.from_uci('c7c5')]
-    # # the board objects are linked for both agents so we only need to call this on one
-    # simulate_game(white_agent, black_agent, fog_game, move_list)
+    str_list = ['e2e4', 'e7e5', 'd1f3', 'b8c6', 'd2d3', 'd8h4', 'g2g3', 'h4f6', 'f3f6', 'g8f6',
+                'c1g5', 'c6d4', 'g5f6', 'd4c2', 'e1d2', 'c2a1', 'f6e5', 'b7b6', 'd3d4', 'c8a6', 'f1a6', ]
+
+    move_list = [chess.Move.from_uci('e2e4'), chess.Move.from_uci('c7c5')]
+    # the board objects are linked for both agents so we only need to call this on one
+    simulate_game(white_agent, black_agent, fog_game, move_list)
+
+    last_move = move_list[-1]
 
     while game_not_over:
         if fog_game.board.turn:
