@@ -237,15 +237,16 @@ class FogAgent:
             self.possible_hists.append(possibilities)
 
     def update_after_our_move(self, move):
-        if len(self.hist) > 0:
-            possibilities = []
-            recents = self.possible_hists[-1]
-            for state in recents:
-                new_pos = state.copy()
-                new_pos.push(move)
-                if self.state_is_possible(new_pos):
-                    possibilities.append(new_pos)
-            self.possible_hists.append(possibilities)
+        if move:
+            if len(self.hist) > 0:
+                possibilities = []
+                recents = self.possible_hists[-1]
+                for state in recents:
+                    new_pos = state.copy()
+                    new_pos.push(move)
+                    if self.state_is_possible(new_pos):
+                        possibilities.append(new_pos)
+                self.possible_hists.append(possibilities)
 
 
     def state_is_possible(self, state):
@@ -614,7 +615,8 @@ class FogAgent:
         copy.push(chess.Move.null())
         for move in copy.pseudo_legal_moves:
             move_str = str(move)
-            if move_str[0:2] in opponent_visible_pieces_squares and move_str[2:4] == start_square:
+            if move_str[0:2] in opponent_visible_pieces_squares and move_str[2:4] == start_square \
+                    and end_square not in opponent_visible_pieces_squares:
                 parsed_start_square = chess.parse_square(start_square)
                 piece = str(copy.piece_at(parsed_start_square))
                 if piece.lower() == "p":
@@ -625,13 +627,13 @@ class FogAgent:
                     material_saved = 5
                 elif piece.lower() == "q":
                     material_saved = 9
-                else:
+                elif piece.lower() == "k":
                     material_saved = 100000000
 
         captured_material = 0
         parsed_end_square = chess.parse_square(end_square)
         opp_piece = str(self.game.board.piece_at(parsed_end_square))
-        if opp_piece is not None:
+        if opp_piece != "None":
             if opp_piece.lower() == "p":
                 captured_material = 1
             elif opp_piece.lower() == "b" or opp_piece.lower() == "n":
@@ -640,7 +642,7 @@ class FogAgent:
                 captured_material = 5
             elif opp_piece.lower() == "q":
                 captured_material = 9
-            else:
+            elif opp_piece.lower() == "k":
                 captured_material = 100000000
 
         return captured_material * 10 + material_saved * 8 + visibility_change * -2
@@ -718,6 +720,57 @@ class FogAgent:
                                        50 * self.opp_attacking_our_pieces(board, b)
         return opp_board_heuristics[b]
 
+
+
+def simulate_game(white_agent, black_agent, game, move_list):
+    last_move = None
+    for move in move_list:
+        # white_agent.update_hist()
+        # black_agent.update_hist()
+        # if game.board.turn:
+        #     game.move(move)
+        #     white_agent.update_game(game)
+        #     black_agent.update_game(game)
+        #     white_agent.update_after_our_move(move)
+        #     black_agent.update_after_their_move()
+        # else:
+        #     game.move(move)
+        #     white_agent.update_game(game)
+        #     black_agent.update_game(game)
+        #     black_agent.update_after_our_move(move)
+        #     white_agent.update_after_their_move()
+        # white_agent.update_hist()
+        # black_agent.update_hist()
+        if game.board.turn:
+            white_agent.update_after_their_move()
+            black_agent.update_after_our_move(last_move)
+            white_agent.update_hist()
+            black_agent.update_hist()
+
+            best_move = move
+
+            last_move = best_move
+            game.move(best_move)
+            white_agent.update_game(game)
+            black_agent.update_game(game)
+
+        else:
+            white_agent.update_after_our_move(last_move)
+            black_agent.update_after_their_move()
+            white_agent.update_hist()
+            black_agent.update_hist()
+
+            best_move = move
+
+            last_move = best_move
+            game.move(best_move)
+            white_agent.update_game(game)
+            black_agent.update_game(game)
+
+
+
+
+
 if __name__ == "__main__":
     game_start_time = time.perf_counter()
 
@@ -726,6 +779,10 @@ if __name__ == "__main__":
     black_agent = FogAgent(fog_game, "black")
     game_not_over = True
     last_move = None
+
+    # move_list = [chess.Move.from_uci('e2e4'), chess.Move.from_uci('c7c5')]
+    # # the board objects are linked for both agents so we only need to call this on one
+    # simulate_game(white_agent, black_agent, fog_game, move_list)
 
     while game_not_over:
         if fog_game.board.turn:
